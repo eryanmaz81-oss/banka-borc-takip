@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Banka Borç Takibi</title>
+<style>
+:root{--bg:#0b1220;--panel:#131d31;--panel2:#192640;--text:#f7f9fc;--muted:#9fb0c8;--green:#36d399;--red:#ff6b6b;--yellow:#ffd166;--blue:#5aa9ff;--line:#293754}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif}
+.app{max-width:760px;margin:auto;padding:env(safe-area-inset-top) 16px calc(90px + env(safe-area-inset-bottom))}
+header{padding:18px 2px 12px}h1{font-size:26px;margin:0 0 4px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.metric b{font-size:21px;display:block;margin-top:7px}.wide{grid-column:1/-1}.section-title{display:flex;align-items:center;justify-content:space-between;margin:20px 2px 10px}
+.section-title h2{font-size:19px;margin:0}.pill{font-size:12px;padding:5px 9px;border-radius:999px;background:#263553;color:#cfe2ff}
+.loan-head{display:flex;justify-content:space-between;gap:10px}.bank{font-size:19px;font-weight:750}.amount{font-size:25px;font-weight:800;margin:14px 0 4px}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.detail{background:#0e1728;border-radius:14px;padding:11px}.detail span{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+button{border:0;border-radius:14px;padding:13px 15px;font-weight:750;font-size:15px}.primary{width:100%;background:var(--green);color:#062b20;margin-top:14px}.secondary{background:#263553;color:white}.danger{background:#4a2028;color:#ffd7dc}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(11,18,32,.94);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding:9px 14px calc(9px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:8px}
+nav button{background:transparent;color:var(--muted);padding:9px 14px}.active{background:#1c2a46!important;color:white!important}
+.hidden{display:none!important}label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}input,select{width:100%;background:#0d1728;border:1px solid #34435f;color:white;border-radius:13px;padding:13px;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{flex:1}
+.notice{border-left:4px solid var(--yellow);padding:10px 12px;background:#302b1c;border-radius:10px;color:#ffe7a6;margin-bottom:12px}.overdue{border-left-color:var(--red);background:#331d24;color:#ffd3d8}
+.empty{text-align:center;color:var(--muted);padding:28px 10px}
+.small{font-size:12px}.history-item{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:11px 0}.history-item:last-child{border:0}
+</style>
+</head>
+<body>
+<div class="app">
+<header><h1>Banka Borçlarım</h1><div class="muted" id="today"></div></header>
+
+<section id="homeView">
+<div class="grid">
+ <div class="card metric wide"><span class="muted">Toplam güncel borç</span><b id="totalDebt">₺0</b></div>
+ <div class="card metric"><span class="muted">Bu ay ödenecek</span><b id="monthDue">₺0</b></div>
+ <div class="card metric"><span class="muted">Geciken</span><b id="overdueCount">0 ödeme</b></div>
+</div>
+<div id="alerts"></div>
+<div class="section-title"><h2>Krediler</h2><span class="pill" id="loanCount"></span></div>
+<div id="loans"></div>
+<div class="section-title"><h2>Kredi Kartları</h2><button class="secondary" onclick="showView('cardFormView')">+ Kart ekle</button></div>
+<div id="cards"></div>
+</section>
+
+<section id="historyView" class="hidden">
+<div class="section-title"><h2>Ödeme Geçmişi</h2></div>
+<div class="card" id="history"></div>
+</section>
+
+<section id="cardFormView" class="hidden">
+<div class="section-title"><h2>Kredi Kartı Ekle / Güncelle</h2></div>
+<div class="card">
+<input type="hidden" id="cardId">
+<label>Banka</label><input id="bank" placeholder="Örn. Garanti BBVA">
+<label>Kart adı</label><input id="cardName" placeholder="Örn. Bonus">
+<div class="row"><div><label>Güncel toplam borç</label><input id="currentDebt" type="number" inputmode="decimal"></div><div><label>Ekstre borcu</label><input id="statementDebt" type="number" inputmode="decimal"></div></div>
+<div class="row"><div><label>Son ödeme tarihi</label><input id="dueDate" type="date"></div><div><label>Asgari ödeme</label><input id="minimum" type="number" inputmode="decimal"></div></div>
+<div class="actions"><button class="secondary" onclick="showView('homeView')">Vazgeç</button><button class="primary" style="margin:0" onclick="saveCard()">Kaydet</button></div>
+</div>
+</section>
+</div>
+
+<nav>
+<button id="navHome" class="active" onclick="showView('homeView')">Ana Sayfa</button>
+<button id="navHistory" onclick="showView('historyView')">Geçmiş</button>
+</nav>
+
+<script>
+const initialLoan = {
+ id:"garanti-458-8082187", bank:"Garanti BBVA", name:"Kredi 458-8082187",
+ original:400000, currentDebt:269462.46, interest:3.19, nextIndex:11,
+ schedule: [["17.09.2025", 24210.17, 394993.62], ["17.10.2025", 24210.17, 384013.77], ["17.11.2025", 24210.17, 372666.14], ["17.12.2025", 24210.17, 360938.42], ["17.01.2026", 24210.17, 348817.89], ["17.02.2026", 24210.17, 336291.37], ["17.03.2026", 24210.17, 323345.27], ["15.04.2026", 24183.61, 309631.07], ["17.05.2026", 24210.17, 296137.68], ["17.06.2026", 24210.17, 281846.64], ["17.07.2026", 24210.17, 267076.93], ["17.08.2026", 24210.17, 251812.5], ["17.09.2026", 24210.17, 236036.79], ["17.10.2026", 24210.17, 219732.67], ["17.11.2026", 24210.17, 202882.44], ["17.12.2026", 24210.17, 185467.82], ["17.01.2027", 24210.17, 167469.89], ["17.02.2027", 24210.17, 148869.12], ["17.03.2027", 24210.17, 129645.32], ["17.04.2027", 24210.17, 109777.62], ["17.05.2027", 24210.17, 89244.46], ["17.06.2027", 24210.17, 68023.54], ["17.07.2027", 24210.17, 46091.82], ["17.08.2027", 24210.17, 23425.5], ["17.09.2027", 24210.13, 0.0]]
+};
+let state = JSON.parse(localStorage.getItem("borcTakipState")||"null") || {loans:[initialLoan],cards:[],history:[]};
+
+const tl=n=>new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",minimumFractionDigits:2}).format(Number(n||0));
+const parseTR=d=>{let [g,a,y]=d.split(".");return new Date(`${y}-${a}-${g}T12:00:00`)};
+const isoToDate=s=>new Date(s+"T12:00:00");
+const trDate=d=>new Intl.DateTimeFormat("tr-TR",{day:"2-digit",month:"long",year:"numeric"}).format(d);
+const save=()=>localStorage.setItem("borcTakipState",JSON.stringify(state));
+document.getElementById("today").textContent=trDate(new Date());
+
+function showView(id){
+ ["homeView","historyView","cardFormView"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==id));
+ document.getElementById("navHome").classList.toggle("active",id==="homeView");
+ document.getElementById("navHistory").classList.toggle("active",id==="historyView");
+ if(id==="homeView") render();
+ if(id==="historyView") renderHistory();
+}
+function loanNext(l){return l.schedule[l.nextIndex]||null}
+function render(){
+ const loanDebt=state.loans.reduce((s,l)=>s+Number(l.currentDebt||0),0);
+ const cardDebt=state.cards.reduce((s,c)=>s+Number(c.currentDebt||0),0);
+ document.getElementById("totalDebt").textContent=tl(loanDebt+cardDebt);
+ const now=new Date(), month=now.getMonth(), year=now.getFullYear();
+ let monthDue=0, overdue=0, alerts=[];
+ state.loans.forEach(l=>{const n=loanNext(l);if(!n)return;const d=parseTR(n[0]);if(d.getMonth()===month&&d.getFullYear()===year)monthDue+=n[1];if(d<new Date(now.toDateString()))overdue++;alerts.push({type:"Kredi",bank:l.bank,date:d,amount:n[1]})});
+ state.cards.forEach(c=>{const d=isoToDate(c.dueDate);if(d.getMonth()===month&&d.getFullYear()===year)monthDue+=Number(c.statementDebt||0);if(d<new Date(now.toDateString())&&Number(c.statementDebt)>0)overdue++;alerts.push({type:"Kart",bank:c.bank,date:d,amount:c.statementDebt})});
+ document.getElementById("monthDue").textContent=tl(monthDue);
+ document.getElementById("overdueCount").textContent=overdue+" ödeme";
+ document.getElementById("loanCount").textContent=state.loans.length+" kredi";
+ alerts.sort((a,b)=>a.date-b.date);
+ document.getElementById("alerts").innerHTML=alerts.slice(0,3).map(a=>{
+   const diff=Math.ceil((a.date-new Date(now.toDateString()))/86400000);
+   const cls=diff<0?"notice overdue":"notice";
+   const when=diff<0?`${Math.abs(diff)} gün gecikti`:diff===0?"Bugün":`${diff} gün sonra`;
+   return `<div class="${cls}"><b>${when} · ${a.bank}</b><div class="small">${a.type} — ${trDate(a.date)} — ${tl(a.amount)}</div></div>`
+ }).join("");
+ document.getElementById("loans").innerHTML=state.loans.map(l=>{
+  const n=loanNext(l), remaining=Math.max(0,l.schedule.length-l.nextIndex);
+  return `<div class="card">
+    <div class="loan-head"><div><div class="bank">${l.bank}</div><div class="muted small">${l.name}</div></div><span class="pill">%${String(l.interest).replace(".",",")}</span></div>
+    <div class="amount">${tl(l.currentDebt)}</div><div class="muted small">Bugünkü kredi borcu</div>
+    <div class="details">
+      <div class="detail"><span>Sonraki ödeme</span><b>${n?trDate(parseTR(n[0])):"Tamamlandı"}</b></div>
+      <div class="detail"><span>Taksit tutarı</span><b>${n?tl(n[1]):tl(0)}</b></div>
+      <div class="detail"><span>Kalan taksit</span><b>${remaining}</b></div>
+      <div class="detail"><span>Kredi tutarı</span><b>${tl(l.original)}</b></div>
+    </div>
+    ${n?`<button class="primary" onclick="payLoan('${l.id}')">✓ Ödeme yaptım</button>`:"<div class='notice'>Bu kredi tamamlandı.</div>"}
+  </div>`
+ }).join("");
+ document.getElementById("cards").innerHTML=state.cards.length?state.cards.map(c=>`
+ <div class="card">
+  <div class="loan-head"><div><div class="bank">${c.bank}</div><div class="muted small">${c.name}</div></div><button class="secondary" onclick="editCard('${c.id}')">Düzenle</button></div>
+  <div class="amount">${tl(c.currentDebt)}</div><div class="muted small">Güncel toplam borç</div>
+  <div class="details">
+   <div class="detail"><span>Ekstre borcu</span><b>${tl(c.statementDebt)}</b></div>
+   <div class="detail"><span>Son ödeme</span><b>${trDate(isoToDate(c.dueDate))}</b></div>
+   <div class="detail"><span>Asgari ödeme</span><b>${tl(c.minimum)}</b></div>
+   <div class="detail"><span>Durum</span><b>${Number(c.statementDebt)>0?"Bekliyor":"Ödendi"}</b></div>
+  </div>
+  <button class="primary" onclick="payCard('${c.id}')">✓ Ekstreyi ödedim</button>
+ </div>`).join(""):`<div class="card empty">Henüz kredi kartı eklenmedi.</div>`;
+}
+function payLoan(id){
+ const l=state.loans.find(x=>x.id===id), n=loanNext(l); if(!n)return;
+ if(!confirm(`${l.bank} ${tl(n[1])} ödemesi yapıldı olarak işaretlensin mi?`))return;
+ state.history.unshift({date:new Date().toISOString(),bank:l.bank,type:"Kredi",amount:n[1],note:n[0]+" taksiti"});
+ l.currentDebt=n[2]; l.nextIndex++; save(); render();
+}
+function saveCard(){
+ const id=document.getElementById("cardId").value||crypto.randomUUID();
+ const obj={id,bank:bank.value.trim(),name:cardName.value.trim(),currentDebt:+currentDebt.value||0,statementDebt:+statementDebt.value||0,dueDate:dueDate.value,minimum:+minimum.value||0};
+ if(!obj.bank||!obj.name||!obj.dueDate){alert("Banka, kart adı ve son ödeme tarihi gerekli.");return}
+ const i=state.cards.findIndex(x=>x.id===id); if(i>=0)state.cards[i]=obj;else state.cards.push(obj);
+ save(); clearForm(); showView("homeView");
+}
+function editCard(id){
+ const c=state.cards.find(x=>x.id===id); cardId.value=c.id;bank.value=c.bank;cardName.value=c.name;currentDebt.value=c.currentDebt;statementDebt.value=c.statementDebt;dueDate.value=c.dueDate;minimum.value=c.minimum;showView("cardFormView");
+}
+function clearForm(){["cardId","bank","cardName","currentDebt","statementDebt","dueDate","minimum"].forEach(x=>document.getElementById(x).value="")}
+function payCard(id){
+ const c=state.cards.find(x=>x.id===id); if(!confirm(`${c.bank} ${tl(c.statementDebt)} ekstre ödemesi yapıldı mı?`))return;
+ state.history.unshift({date:new Date().toISOString(),bank:c.bank,type:"Kredi Kartı",amount:c.statementDebt,note:c.name});
+ c.currentDebt=Math.max(0,c.currentDebt-c.statementDebt);c.statementDebt=0;c.minimum=0;save();render();
+}
+function renderHistory(){
+ history.innerHTML=state.history.length?state.history.map(h=>`<div class="history-item"><div><b>${h.bank}</b><div class="muted small">${h.type} · ${trDate(new Date(h.date))}</div></div><b>${tl(h.amount)}</b></div>`).join(""):`<div class="empty">Henüz ödeme kaydı yok.</div>`;
+}
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+render();
+</script>
+</body></html>
